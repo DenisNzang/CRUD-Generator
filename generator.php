@@ -246,6 +246,9 @@ function generateIndex($outputDir, $config) {
     <script src="assets/js/jquery.dataTables.min.js"></script>
     <script src="assets/js/dataTables.bootstrap5.min.js"></script>
     <script src="assets/js/dataTables.buttons.min.js"></script>
+    <script src="assets/js/jszip.min.js"></script>
+    <script src="assets/js/pdfmake.min.js"></script>
+    <script src="assets/js/vfs_fonts.js"></script>
     <script src="assets/js/buttons.html5.min.js"></script>
     <script src="assets/js/buttons.print.min.js"></script>
 </body>
@@ -766,46 +769,46 @@ $dataTableColumns = "{
     if (!empty($relatedFields)) {
         $relatedOptionsCode = <<<'EOT'
 
-// Procesar solicitud de opciones relacionadas
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_related_options') {
-    header('Content-Type: application/json');
-    
-    $relatedTable = $_POST['related_table'] ?? '';
-    $displayField = $_POST['display_field'] ?? 'name';
-    $valueField = $_POST['value_field'] ?? 'id';
-    
-    if (!empty($relatedTable)) {
-        try {
-            // Obtener los campos disponibles en la tabla relacionada
-            $stmt = $pdo->query("PRAGMA table_info($relatedTable)");
-            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
-            
-            // Verificar si el campo display existe, si no usar el campo determinado por la función
-            if (!in_array($displayField, $columns)) {
-                $displayField = getDisplayFieldForRelatedTable($dbFile, $relatedTable);
-            }
-            
-            // Obtener las opciones
-            $stmt = $pdo->query("SELECT $valueField, $displayField FROM $relatedTable ORDER BY $displayField");
-            $options = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            $result = [];
-            foreach ($options as $option) {
-                $result[] = [
-                    'value' => $option[$valueField],
-                    'text' => $option[$displayField] ?: 'Sin nombre (ID: ' . $option[$valueField] . ')'
-                ];
-            }
-            
-            echo json_encode(['options' => $result]);
-        } catch (PDOException $e) {
-            echo json_encode(['error' => 'Error al cargar opciones: ' . $e->getMessage()]);
-        }
-    } else {
-        echo json_encode(['error' => 'Tabla relacionada no especificada']);
-    }
-    exit();
-}
+ // Procesar solicitud de opciones relacionadas
+ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'get_related_options') {
+     header('Content-Type: application/json');
+     
+     $relatedTable = $_POST['related_table'] ?? '';
+     $displayField = $_POST['display_field'] ?? 'name';
+     $valueField = $_POST['value_field'] ?? 'id';
+     
+     if (!empty($relatedTable)) {
+         try {
+             // Obtener los campos disponibles en la tabla relacionada
+             $stmt = $pdo->query("PRAGMA table_info($relatedTable)");
+             $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
+             
+             // Verificar si el campo display existe, si no usar el campo determinado por la función
+             if (!in_array($displayField, $columns)) {
+                 $displayField = getDisplayFieldForRelatedTable($dbFile, $relatedTable);
+             }
+             
+             // Obtener las opciones
+             $stmt = $pdo->query("SELECT $valueField, $displayField FROM $relatedTable ORDER BY $displayField");
+             $options = $stmt->fetchAll(PDO::FETCH_ASSOC);
+             
+             $result = [];
+             foreach ($options as $option) {
+                 $result[] = [
+                     'value' => $option[$valueField],
+                     'text' => $option[$displayField] ?: 'Sin nombre (ID: ' . $option[$valueField] . ')'
+                 ];
+             }
+             
+             echo json_encode(['options' => $result]);
+         } catch (PDOException $e) {
+             echo json_encode(['error' => 'Error al cargar opciones: ' . $e->getMessage()]);
+         }
+     } else {
+         echo json_encode(['error' => 'Tabla relacionada no especificada']);
+     }
+     exit();
+ }
 EOT;
     }
     
@@ -1186,66 +1189,52 @@ $content .= <<<EOT
     
     <?php include 'footer.php'; ?>
     
-    <script src="assets/js/jquery-3.6.0.min.js"></script>
-    <script src="assets/js/bootstrap.bundle.min.js"></script>
-    <script src="assets/js/jquery.dataTables.min.js"></script>
-    <script src="assets/js/dataTables.bootstrap5.min.js"></script>
-    <script src="assets/js/dataTables.buttons.min.js"></script>
-    <script src="assets/js/buttons.html5.min.js"></script>
-    <script src="assets/js/jszip.min.js"></script>
-    <script src="assets/js/pdfmake.min.js"></script>
-    <script src="assets/js/vfs_fonts.js"></script>
-    
-    <script>
-        \$(document).ready(function() {
-            // Inicializar DataTable con botones de exportación
-            var table = \$('#dataTable').DataTable({
-                language: {
-                    url: 'assets/js/Spanish.json'
-                },
-                dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
-                     '<"row"<"col-sm-12"tr>>' +
-                     '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>' +
-                     '<"row"<"col-sm-12"B>>',
-                buttons: [
-                    {
-                        extend: 'excel',
-                        text: '📊 Excel',
-                        className: 'btn btn-primary border btn-sm'
-                    },
-                    {
-                        extend: 'pdf',
-                        text: '📄 PDF',
-                        className: 'btn btn-primary border btn-sm'
-                    }
-                    // Se eliminó el botón de imprimir de aquí
-                ],
-                pageLength: 10,
-                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Todos"]],
-                responsive: true,
-                // Configuración importante para mantener los eventos
-                drawCallback: function(settings) {
-                    // Re-inicializar eventos después de cada redibujado de DataTables
-                    initializeButtonEvents();
-                },
-                initComplete: function(settings, json) {
-                    // Inicializar eventos después de la inicialización completa
-                    initializeButtonEvents();
-                }
-            });
-            
-            // Botones de exportación personalizados
-            \$('#exportExcelBtn').on('click', function() {
-                table.button('.buttons-excel').trigger();
-            });
-            
-            \$('#exportPdfBtn').on('click', function() {
-                table.button('.buttons-pdf').trigger();
-            });
-            
-            \$('#printBtn').on('click', function() {
-                window.print();
-            });
+<script src="assets/js/jquery-3.6.0.min.js"></script>
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/jquery.dataTables.min.js"></script>
+<script src="assets/js/dataTables.bootstrap5.min.js"></script>
+<script src="assets/js/dataTables.buttons.min.js"></script>
+
+<!-- Load exporters BEFORE buttons.html5 -->
+<script src="assets/js/jszip.min.js"></script>
+<script src="assets/js/pdfmake.min.js"></script>
+<script src="assets/js/vfs_fonts.js"></script>
+
+<script src="assets/js/buttons.html5.min.js"></script>
+<script src="assets/js/buttons.print.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    var table = $('#dataTable').DataTable({
+        language: { url: 'assets/js/Spanish.json' },
+        dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+             '<"row"<"col-sm-12"tr>>' +
+             '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>' +
+             '<"row"<"col-sm-12"B>>',
+        buttons: [
+            {
+                extend: 'excelHtml5',   // explicit HTML5 exporter
+                text: '📊 Excel',
+                className: 'btn btn-primary border btn-sm'
+            },
+            {
+                extend: 'pdfHtml5',     // explicit HTML5 exporter
+                text: '📄 PDF',
+                className: 'btn btn-primary border btn-sm'
+            }
+        ],
+        pageLength: 10,
+        lengthMenu: [[5,10,25,50,-1],[5,10,25,50,"Todos"]],
+        responsive: true,
+        drawCallback: function(settings) { initializeButtonEvents(); },
+        initComplete: function(settings, json) { initializeButtonEvents(); }
+    });
+
+    // Custom external buttons trigger the DataTables buttons
+    $('#exportExcelBtn').on('click', function() { table.button('.buttons-excel').trigger(); });
+    $('#exportPdfBtn').on('click', function() { table.button('.buttons-pdf').trigger(); });
+    $('#printBtn').on('click', function() { window.print(); });
+
             
             $ajaxFunctions
             
@@ -1360,7 +1349,7 @@ $content .= <<<EOT
                 \$('#recordId').val('');
                 \$('#addModalLabel').text('Agregar Nuevo Registro');
             });
-
+        
             // Manejar envío del formulario para prevenir recarga de página
             \$('#recordForm').on('submit', function(e) {
                 e.preventDefault();
@@ -1408,152 +1397,152 @@ function generateAssets($outputDir, $config) {
     // Crear archivo CSS básico
     $primaryColor = $config['primary_color'] ?? '#0d6efd';
     $cssContent = <<<EOT
-:root {
-    --primary-color: $primaryColor;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f8f9fa;
-}
-
-.min-vh-100 {
-    min-height: 100vh;
-}
-
-.table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-}
-
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.card-header {
-    background-color: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.navbar-brand {
-    font-weight: 600;
-}
-
-.dt-buttons {
-    margin-bottom: 1rem;
-}
-
-.dt-buttons .btn {
-    margin-right: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.btn {
-    border-radius: 0.375rem;
-}
-
-.btn-primary {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-}
-
-.btn-primary:hover {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-    opacity: 0.9;
-}
-
-/* Botones minimalistas horizontales */
-.btn-minimal {
-    background: transparent;
-    border: 1px solid #dee2e6;
-    color: #6c757d;
-    padding: 4px 8px;
-    font-size: 0.875rem;
-    margin: 0 1px;
-    border-radius: 3px;
-    transition: all 0.2s ease;
-    width: auto;
-}
-
-.btn-minimal:hover {
-    background: #f8f9fa;
-    border-color: #adb5bd;
-    color: #495057;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.btn-minimal:active {
-    transform: translateY(0);
-    box-shadow: none;
-}
-
-.btn-group.btn-group-sm {
-    width: auto;
-}
-
-.btn-group.btn-group-sm > .btn {
-    border-radius: 3px;
-}
-
-.navbar-dark {
-    background-color: var(--primary-color) !important;
-}
-
-.bg-primary {
-    background-color: var(--primary-color) !important;
-}
-
-.form-control, .form-select {
-    border-radius: 0.375rem;
-}
-
-.dataTables_wrapper .dataTables_length,
-.dataTables_wrapper .dataTables_filter {
-    margin: 1rem 0;
-},
-.dataTables_wrapper .dataTables_info,
-.dataTables_wrapper .dataTables_processing,
-.dataTables_wrapper .dataTables_paginate {
-    margin: 1rem 0;
-}
-
-.pagination .page-item.active .page-link { background-color: var(--primary-color); }
-
-div.dataTables_wrapper div.dataTables_paginate ul.pagination .page-item.active .page-link:focus {
-background-color: var(--primary-color);
-}
-
-.pagination .page-item.active .page-link:hover {
-background-color: var(--primary-color);
-}
-
-.btn-group .btn {
-    margin-right: 0.25rem;
-}
-
-.modal-body table th {
-    background-color: #f8f9fa;
-    width: 30%;
-}
-
-/* Estilos para mejorar la visualización de datos */
-#viewModalBody table {
-    width: 100%;
-}
-
-#viewModalBody th {
-    background-color: #f1f3f4;
-    padding: 8px 12px;
-}
-
-#viewModalBody td {
-    padding: 8px 12px;
-    border-bottom: 1px solid #dee2e6;
-}
-EOT;
+ :root {
+     --primary-color: $primaryColor;
+ }
+ 
+ body {
+     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+     background-color: #f8f9fa;
+ }
+ 
+ .min-vh-100 {
+     min-height: 100vh;
+ }
+ 
+ .table th {
+     background-color: #f8f9fa;
+     font-weight: 600;
+ }
+ 
+ .card {
+     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+     border: 1px solid rgba(0, 0, 0, 0.125);
+ }
+ 
+ .card-header {
+     background-color: #fff;
+     border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+ }
+ 
+ .navbar-brand {
+     font-weight: 600;
+ }
+ 
+ .dt-buttons {
+     margin-bottom: 1rem;
+ }
+ 
+ .dt-buttons .btn {
+     margin-right: 0.5rem;
+     margin-bottom: 0.5rem;
+ }
+ 
+ .btn {
+     border-radius: 0.375rem;
+ }
+ 
+ .btn-primary {
+     background-color: var(--primary-color);
+     border-color: var(--primary-color);
+ }
+ 
+ .btn-primary:hover {
+     background-color: var(--primary-color);
+     border-color: var(--primary-color);
+     opacity: 0.9;
+ }
+ 
+ /* Botones minimalistas horizontales */
+ .btn-minimal {
+     background: transparent;
+     border: 1px solid #dee2e6;
+     color: #6c757d;
+     padding: 4px 8px;
+     font-size: 0.875rem;
+     margin: 0 1px;
+     border-radius: 3px;
+     transition: all 0.2s ease;
+     width: auto;
+ }
+ 
+ .btn-minimal:hover {
+     background: #f8f9fa;
+     border-color: #adb5bd;
+     color: #495057;
+     transform: translateY(-1px);
+     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+ }
+ 
+ .btn-minimal:active {
+     transform: translateY(0);
+     box-shadow: none;
+ }
+ 
+ .btn-group.btn-group-sm {
+     width: auto;
+ }
+ 
+ .btn-group.btn-group-sm > .btn {
+     border-radius: 3px;
+ }
+ 
+ .navbar-dark {
+     background-color: var(--primary-color) !important;
+ }
+ 
+ .bg-primary {
+     background-color: var(--primary-color) !important;
+ }
+ 
+ .form-control, .form-select {
+     border-radius: 0.375rem;
+ }
+ 
+ .dataTables_wrapper .dataTables_length,
+ .dataTables_wrapper .dataTables_filter {
+     margin: 1rem 0;
+ },
+ .dataTables_wrapper .dataTables_info,
+ .dataTables_wrapper .dataTables_processing,
+ .dataTables_wrapper .dataTables_paginate {
+     margin: 1rem 0;
+ }
+ 
+ .pagination .page-item.active .page-link { background-color: var(--primary-color); }
+ 
+ div.dataTables_wrapper div.dataTables_paginate ul.pagination .page-item.active .page-link:focus {
+ background-color: var(--primary-color);
+ }
+ 
+ .pagination .page-item.active .page-link:hover {
+ background-color: var(--primary-color);
+ }
+ 
+ .btn-group .btn {
+     margin-right: 0.25rem;
+ }
+ 
+ .modal-body table th {
+     background-color: #f8f9fa;
+     width: 30%;
+ }
+ 
+ /* Estilos para mejorar la visualización de datos */
+ #viewModalBody table {
+     width: 100%;
+ }
+ 
+ #viewModalBody th {
+     background-color: #f1f3f4;
+     padding: 8px 12px;
+ }
+ 
+ #viewModalBody td {
+     padding: 8px 12px;
+     border-bottom: 1px solid #dee2e6;
+ }
+ EOT;
     
     file_put_contents($cssDir . 'style.css', $cssContent);
     
